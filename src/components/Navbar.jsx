@@ -84,18 +84,24 @@ const Navbar = ({ openContactModal }) => {
                 />
               </Link>
               
-              {/* Desktop Navigation Links — Shown on lg (1024px+) viewports */}
+              {/* Desktop Navigation Links â€” Shown on lg (1024px+) viewports */}
               <div className="hidden lg:flex items-center gap-5 xl:gap-8 text-white/80 shrink-0">
                 <Link 
                   to="/product" 
                   onClick={(e) => handleNavClick(e, '/product')} 
-                  className={`whitespace-nowrap shrink-0 text-sm xl:text-[15px] font-medium transition-all duration-300 ${
+                  className={`whitespace-nowrap shrink-0 text-sm xl:text-[15px] font-medium transition-all duration-300 inline-flex items-center gap-1.5 ${
                     location.pathname === '/product' 
                       ? 'text-white font-semibold drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]' 
                       : 'hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]'
                   }`}
                 >
-                  LUCA ●● | Smart Speaker
+                  <span>LUCA</span>
+                  <span className="inline-flex items-center gap-[3.5px] mx-0.5" aria-hidden="true">
+                    <span className="w-[5px] h-[5px] xl:w-[5.5px] xl:h-[5.5px] rounded-full bg-white shadow-[0_0_4px_rgba(255,255,255,0.8)] inline-block"></span>
+                    <span className="w-[5px] h-[5px] xl:w-[5.5px] xl:h-[5.5px] rounded-full bg-white shadow-[0_0_4px_rgba(255,255,255,0.8)] inline-block"></span>
+                  </span>
+                  <span className="text-white/50 mx-0.5">|</span>
+                  <span>Smart Speaker</span>
                 </Link>
                 <Link 
                   to="/ai" 
@@ -107,6 +113,28 @@ const Navbar = ({ openContactModal }) => {
                   }`}
                 >
                   LFM
+                </Link>
+                <Link 
+                  to="/models" 
+                  onClick={(e) => handleNavClick(e, '/models')} 
+                  className={`whitespace-nowrap shrink-0 text-sm xl:text-[15px] font-medium transition-all duration-300 ${
+                    location.pathname === '/models'
+                      ? 'text-white font-semibold drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]' 
+                      : 'hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]'
+                  }`}
+                >
+                  Models
+                </Link>
+                <Link 
+                  to="/institutions" 
+                  onClick={(e) => handleNavClick(e, '/institutions')} 
+                  className={`whitespace-nowrap shrink-0 text-sm xl:text-[15px] font-medium transition-all duration-300 ${
+                    location.pathname === '/institutions'
+                      ? 'text-white font-semibold drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]' 
+                      : 'hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.45)]'
+                  }`}
+                >
+                  Institutions
                 </Link>
               </div>
             </div>
@@ -165,7 +193,15 @@ const Navbar = ({ openContactModal }) => {
                         ? 'bg-[#a882ff] shadow-[0_0_8px_#a882ff]' 
                         : 'bg-white/20 group-hover:bg-white/50'
                     }`} />
-                    <span className="text-sm sm:text-base font-semibold tracking-tight whitespace-nowrap">LUCA ●● | Smart Speaker</span>
+                    <span className="text-sm sm:text-base font-semibold tracking-tight whitespace-nowrap inline-flex items-center gap-1.5">
+                      <span>LUCA</span>
+                      <span className="inline-flex items-center gap-[3px] mx-0.5" aria-hidden="true">
+                        <span className="w-[5px] h-[5px] rounded-full bg-white shadow-[0_0_4px_rgba(255,255,255,0.8)] inline-block"></span>
+                        <span className="w-[5px] h-[5px] rounded-full bg-white shadow-[0_0_4px_rgba(255,255,255,0.8)] inline-block"></span>
+                      </span>
+                      <span className="text-white/50 mx-0.5">|</span>
+                      <span>Smart Speaker</span>
+                    </span>
                   </div>
                   <ArrowRight className={`w-4 h-4 shrink-0 ml-2 transition-all duration-200 ${
                     location.pathname === '/product'
@@ -177,7 +213,7 @@ const Navbar = ({ openContactModal }) => {
                 {/* Nav Option 2: LFM */}
                 <Link 
                   to="/ai" 
-                  onClick={(e) => handleNavClick(e, '/ai')}
+                  onClick={(e) => handleNavClick(e, '/ai')} 
                   className={`group flex items-center justify-between py-3 px-4 rounded-2xl transition-all duration-200 ${
                     location.pathname === '/ai' 
                       ? 'bg-[#512da8]/15 border border-[#a882ff]/35 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_20px_rgba(81,45,168,0.15)]' 
@@ -194,6 +230,56 @@ const Navbar = ({ openContactModal }) => {
                   </div>
                   <ArrowRight className={`w-4 h-4 shrink-0 ml-2 transition-all duration-200 ${
                     location.pathname === '/ai'
+                      ? 'text-[#a882ff]'
+                      : 'text-white/25 group-hover:text-white/70 group-hover:translate-x-1'
+                  }`} />
+                </Link>
+
+                {/* Nav Option 2.2: Models */}
+                <Link 
+                  to="/models" 
+                  onClick={(e) => handleNavClick(e, '/models')} 
+                  className={`group flex items-center justify-between py-3 px-4 rounded-2xl transition-all duration-200 ${
+                    location.pathname === '/models' 
+                      ? 'bg-[#512da8]/15 border border-[#a882ff]/35 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_20px_rgba(81,45,168,0.15)]' 
+                      : 'text-white/75 hover:text-white hover:bg-white/[0.04] active:bg-white/[0.07] border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${
+                      location.pathname === '/models' 
+                        ? 'bg-[#a882ff] shadow-[0_0_8px_#a882ff]' 
+                        : 'bg-white/20 group-hover:bg-white/50'
+                    }`} />
+                    <span className="text-sm sm:text-base font-semibold tracking-tight whitespace-nowrap">Models</span>
+                  </div>
+                  <ArrowRight className={`w-4 h-4 shrink-0 ml-2 transition-all duration-200 ${
+                    location.pathname === '/models'
+                      ? 'text-[#a882ff]'
+                      : 'text-white/25 group-hover:text-white/70 group-hover:translate-x-1'
+                  }`} />
+                </Link>
+
+                {/* Nav Option 2.5: Institutions */}
+                <Link 
+                  to="/institutions" 
+                  onClick={(e) => handleNavClick(e, '/institutions')} 
+                  className={`group flex items-center justify-between py-3 px-4 rounded-2xl transition-all duration-200 ${
+                    location.pathname === '/institutions'
+                      ? 'bg-[#512da8]/15 border border-[#a882ff]/35 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_20px_rgba(81,45,168,0.15)]' 
+                      : 'text-white/75 hover:text-white hover:bg-white/[0.04] active:bg-white/[0.07] border border-transparent'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${
+                      location.pathname === '/institutions'
+                        ? 'bg-[#a882ff] shadow-[0_0_8px_#a882ff]' 
+                        : 'bg-white/20 group-hover:bg-white/50'
+                    }`} />
+                    <span className="text-sm sm:text-base font-semibold tracking-tight whitespace-nowrap">Institutions</span>
+                  </div>
+                  <ArrowRight className={`w-4 h-4 shrink-0 ml-2 transition-all duration-200 ${
+                    location.pathname === '/institutions'
                       ? 'text-[#a882ff]'
                       : 'text-white/25 group-hover:text-white/70 group-hover:translate-x-1'
                   }`} />
