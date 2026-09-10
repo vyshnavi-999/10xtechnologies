@@ -2,6 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Mic, Sparkles, MessageSquare, Plus, Trash2, Bot, User } from 'lucide-react';
 import Starfield from '../components/Starfield';
+import {
+  retrieveKnowledge,
+  formatKnowledgeContext,
+  buildSystemPrompt,
+  formatAssistantResponseStyle,
+  isIdentityQuery
+} from '../knowledge/index.js';
+import {
+  getQwenGenerator,
+  generateQwenResponse,
+  isWebGPUSupported,
+  isModelReady,
+  probeDeviceCapability,
+  getCachedCapability,
+  getRuntimeConfig,
+  RUNTIME_TIERS,
+  subscribeState
+} from '../services/qwenService.js';
 
 const SpacePage = () => {
   const { state } = useLocation();
@@ -12,17 +30,119 @@ const SpacePage = () => {
     { 
       id: 'welcome', 
       sender: 'assistant', 
-      text: 'Hello! I am LUCA, your AI assistant. I am currently running on a dummy local model. You can type any query here, and once you confirm it works, you can easily plug in your own API or model endpoint in `src/pages/SpacePage.jsx`!' 
+      text: 'Hello! I am LUCA, your AI assistant for 10X Technologies. Ask me anything about our Akshara models, Libre OS, the LUCA smart speaker, or our research!' 
     }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [modelStatus, setModelStatus] = useState(() => {
+    if (isModelReady()) return 'ready';
+    const cached = getCachedCapability();
+    if (cached && !cached.supported) return cached.reason;
+    return 'checking';
+  });
+  const [modelProgress, setModelProgress] = useState('');
+  const [statusMessage, setStatusMessage] = useState(() => {
+    const cached = getCachedCapability();
+    return cached && !cached.supported ? cached.message : '';
+  });
+  const [hasLowMemory, setHasLowMemory] = useState(() => {
+    const cached = getCachedCapability();
+    return cached ? !!cached.hasLowMemory : false;
+  });
   const messagesEndRef = useRef(null);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
+
+  // Subscribe to Qwen model lifecycle state changes (including device loss recovery)
+  useEffect(() => {
+    let mounted = true;
+
+    // Listen to singleton state transitions
+    const unsubscribe = subscribeState((state, detail) => {
+      if (!mounted) return;
+      if (state === 'ready') {
+        setModelStatus('ready');
+        setModelProgress('');
+        setStatusMessage('');
+      } else if (state === 'device_lost') {
+        setModelStatus('error');
+        setStatusMessage('WebGPU device was lost. Please send a message to reinitialize.');
+      } else if (state === 'UNSUPPORTED_SHADER_F16' || state === 'UNSUPPORTED_LOCAL_WEBGPU' || state === 'INSUFFICIENT_DEVICE_RESOURCES') {
+        setModelStatus(state);
+        if (detail?.message) setStatusMessage(detail.message);
+      } else if (state === 'INITIALIZATION_FAILED') {
+        setModelStatus('INITIALIZATION_FAILED');
+        setStatusMessage(detail?.message || 'Failed to initialize local AI model on this device.');
+      }
+    });
+
+    if (isModelReady()) {
+      setModelStatus('ready');
+      return () => {
+        mounted = false;
+        unsubscribe();
+      };
+    }
+
+    probeDeviceCapability().then((cap) => {
+      if (!mounted) return;
+
+      if (cap.hasLowMemory) {
+        setHasLowMemory(true);
+      }
+
+      if (!cap.supported) {
+        setModelStatus(cap.reason);
+        setStatusMessage(cap.message);
+        return;
+      }
+
+      setModelStatus('loading');
+      setStatusMessage(
+        cap.hasLowMemory
+          ? 'Your device has limited available memory, so startup may take a little longer.'
+          : 'Preparing LUCA AI...'
+      );
+
+      getQwenGenerator((progress) => {
+        if (!mounted) return;
+        if (progress.status === 'progress' && progress.total) {
+          const pct = Math.round((progress.loaded / progress.total) * 100);
+          setModelProgress(`${pct}%`);
+          setStatusMessage(`Preparing LUCA AI (${pct}%)...`);
+        } else if (progress.status === 'done') {
+          setModelProgress('');
+          setStatusMessage('Compiling shaders for your GPU...');
+        }
+      })
+        .then(() => {
+          if (mounted) {
+            setModelStatus('ready');
+            setModelProgress('');
+            setStatusMessage('');
+          }
+        })
+        .catch((err) => {
+          console.error('Qwen WebGPU model loading error:', err);
+          if (mounted) {
+            const errCode = err.code || 'INITIALIZATION_FAILED';
+            setModelStatus(errCode);
+            setStatusMessage(err.message || 'Failed to initialize local AI model on this device.');
+          }
+        });
+    });
+
+    return () => {
+      mounted = false;
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
 
   // Handle initial query from home page
   useEffect(() => {
@@ -35,58 +155,178 @@ const SpacePage = () => {
     }
   }, [initialQuery]);
 
-  const getDummyResponse = (userText) => {
-    const text = userText.toLowerCase().trim();
-    if (text.includes('hello') || text.includes('hi') || text === 'hey') {
-      return "Hello! How can I assist you today? I'm ready to process your requests.";
-    }
-    if (text.includes('who are you') || text.includes('your name') || text.includes('luca')) {
-      return "I am LUCA, an AI assistant powered by a Language Fluency Model (LFM) developed by 10X Technologies. I'm designed for low-latency, private, and localized intelligence.";
-    }
-    if (text.includes('model') || text.includes('api') || text.includes('connect') || text.includes('how to')) {
-      return "To connect your own model:\n\n1. Open `src/pages/SpacePage.jsx`.\n2. Locate the `handleSendMessage` function.\n3. Replace the local simulation logic with a `fetch()` call to your API endpoint (e.g., your local server or Hugging Face Space API).\n4. Update the state with the model's actual response.";
-    }
-    if (text.includes('weather')) {
-      return "I don't have access to real-time weather data right now, but I can tell you that the local climate in 10X Technologies' environment is always set to innovation!";
-    }
-    return `Received: "${userText}"\n\nThis is a mock response from the dummy LUCA model. You can edit the \`handleSendMessage\` function in \`src/pages/SpacePage.jsx\` to connect your actual AI model.`;
-  };
+  const handleSendMessage = async (customText = null) => {
+    const textToSend = customText || input;
+    if (!textToSend || !textToSend.trim() || isTyping) return;
 
-  const handleSendMessage = (textToSend) => {
-    if (!textToSend.trim()) return;
+    const tStartTotal = performance.now();
 
-    // Add user message
-    const userMsg = { id: Date.now().toString(), sender: 'user', text: textToSend };
-    setMessages((prev) => [...prev, userMsg]);
+    const trimmedInput = textToSend.trim();
+    // Add user message to conversation
+    const userMsg = { id: Date.now().toString(), sender: 'user', text: trimmedInput };
+    const replyMsgId = (Date.now() + 1).toString();
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      { id: replyMsgId, sender: 'assistant', text: '' },
+    ]);
     setInput('');
     setIsTyping(true);
 
-    // Simulate model thinking delay
-    setTimeout(() => {
-      const replyText = getDummyResponse(textToSend);
-      setIsTyping(false);
+    try {
+      // 1. Retrieve relevant verified knowledge chunks client-side with tier-aware budget
+      const cap = getCachedCapability();
+      const runtimeConfig = getRuntimeConfig(cap);
 
-      // Stream the response word by word
-      const words = replyText.split(' ');
-      let currentText = '';
-      const replyMsgId = (Date.now() + 1).toString();
+      const tStartRetrieval = performance.now();
+      const ragResult = retrieveKnowledge(trimmedInput, { topK: runtimeConfig.ragTopK, minScore: 0.8 });
+      const retrievalTime = performance.now() - tStartRetrieval;
 
-      // Pre-add empty assistant message
-      setMessages((prev) => [...prev, { id: replyMsgId, sender: 'assistant', text: '' }]);
+      // 2. Format context & construct prompt
+      const tStartFormatting = performance.now();
+      let knowledgeContext = '';
+      if (ragResult.hasMatch && ragResult.chunks.length > 0) {
+        knowledgeContext = formatKnowledgeContext(ragResult.chunks, { verificationAnalysis: ragResult.verificationAnalysis });
+      } else if (ragResult.verificationAnalysis?.isInsufficient) {
+        knowledgeContext = formatKnowledgeContext([], { verificationAnalysis: ragResult.verificationAnalysis });
+      }
 
-      let wordIndex = 0;
-      const interval = setInterval(() => {
-        if (wordIndex < words.length) {
-          currentText += (wordIndex === 0 ? '' : ' ') + words[wordIndex];
-          setMessages((prev) => 
-            prev.map((msg) => msg.id === replyMsgId ? { ...msg, text: currentText } : msg)
+      // Development-only diagnostic logging
+      console.log('=== [10X RAG Flow: SpacePage] ===');
+      console.log('1. User Query:', trimmedInput);
+      console.log('2. Retrieved Chunk IDs:', ragResult.chunks.map(c => c.id));
+      console.log('3. Retrieved Topics:', ragResult.chunks.map(c => c.title));
+      console.log('4. Retrieval Scores:', ragResult.scoredResults ? ragResult.scoredResults.map(s => `${s.chunk.id}: ${s.score.toFixed(2)}`) : `Top: ${ragResult.topScore.toFixed(2)}`);
+      console.log('5. Temporal Classification:', ragResult.verificationAnalysis?.temporalClassification || 'general');
+      console.log('6. Verification Sensitive:', !!ragResult.verificationAnalysis?.isVerificationSensitive);
+      console.log('7. Active Verification Guard:', ragResult.verificationAnalysis?.activeGuard?.id || 'None');
+      console.log('8. Chunks Debug:', ragResult.chunksDebug);
+      console.log('9. Safe Context Preview:', knowledgeContext ? knowledgeContext.slice(0, 200).replace(/\s+/g, ' ') + '...' : 'None');
+
+      // 2. Check if query asks for unverified information that requires an insufficiency answer
+      if (ragResult.verificationAnalysis?.isInsufficient && ragResult.verificationAnalysis?.suggestedAnswer) {
+        const formattingTime = performance.now() - tStartFormatting;
+        const verifiedAnswer = ragResult.verificationAnalysis.suggestedAnswer;
+        const words = verifiedAnswer.split(' ');
+        let accumulated = '';
+        const tStartStream = performance.now();
+        let tFirstToken = null;
+
+        for (let i = 0; i < words.length; i++) {
+          if (tFirstToken === null) {
+            tFirstToken = performance.now();
+          }
+          accumulated += (i === 0 ? '' : ' ') + words[i];
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === replyMsgId ? { ...msg, text: accumulated } : msg))
           );
-          wordIndex++;
-        } else {
-          clearInterval(interval);
+          if (i < words.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 25));
+          }
         }
-      }, 50); // 50ms per word
-    }, 800);
+
+        const tEndStream = performance.now();
+        const ttft = tFirstToken ? tFirstToken - tStartStream : 0;
+        const genTime = tEndStream - tStartStream;
+        const totalTime = performance.now() - tStartTotal;
+
+        console.log(`[RAG] Retrieval: ${retrievalTime.toFixed(2)} ms`);
+        console.log(`[RAG] Context formatting: ${formattingTime.toFixed(2)} ms`);
+        console.log(`[QWEN] Time to first token: ${ttft.toFixed(2)} ms`);
+        console.log(`[QWEN] Generation: ${genTime.toFixed(2)} ms`);
+        console.log(`[TOTAL] End-to-end: ${totalTime.toFixed(2)} ms`);
+
+        return;
+      }
+
+      // 3. Strict system instructions for LUCA grounded in verified knowledge (token-optimized)
+      const systemContent = buildSystemPrompt(knowledgeContext);
+
+      // Check if local inference cannot run on this hardware
+      if (!isModelReady() && modelStatus !== 'ready' && modelStatus !== 'loading') {
+        const detailMsg = statusMessage || cap?.message || 'Local WebGPU inference is unavailable on this device.';
+        const responseText = `LUCA runs locally inside your browser via WebGPU. On this device, local AI model execution cannot start: ${detailMsg}\n\nPlease open this page on a desktop computer or a device with WebGPU support to run conversational inference.`;
+
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === replyMsgId ? { ...msg, text: responseText } : msg))
+        );
+        return;
+      }
+
+      // 4. Assemble chat messages for Qwen with adaptive conversation history
+      const recentHistory = messages
+        .filter((m) => m.id !== 'welcome' && m.text && m.text.trim())
+        .slice(runtimeConfig.historyLimit)
+        .map((m) => ({
+          role: m.sender === 'user' ? 'user' : 'assistant',
+          content: m.text,
+        }));
+
+      const chatMessages = [
+        { role: 'system', content: systemContent },
+        ...recentHistory,
+        { role: 'user', content: trimmedInput },
+      ];
+
+      const formattingTime = performance.now() - tStartFormatting;
+
+      // Detect if user specifically asked who LUCA is
+      const isIdentity = isIdentityQuery(trimmedInput);
+
+      // 5. Stream response using Qwen3-0.6B WebGPU
+      let accumulated = '';
+      const tStartQwen = performance.now();
+      let tFirstToken = null;
+
+      const finalReply = await generateQwenResponse(chatMessages, {
+        maxNewTokens: runtimeConfig.maxNewTokens,
+        temperature: runtimeConfig.temperature,
+        topK: runtimeConfig.topK,
+        doSample: runtimeConfig.doSample,
+        onToken: (chunk) => {
+          if (tFirstToken === null) {
+            tFirstToken = performance.now();
+          }
+          accumulated = chunk;
+          const formatted = formatAssistantResponseStyle(chunk, isIdentity);
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === replyMsgId ? { ...msg, text: formatted } : msg))
+          );
+        },
+      });
+
+      const tEndQwen = performance.now();
+      const qwenTTFT = tFirstToken ? tFirstToken - tStartQwen : 0;
+      const qwenGenTime = tEndQwen - tStartQwen;
+      const totalEndToEnd = performance.now() - tStartTotal;
+
+      const formattedFinal = formatAssistantResponseStyle(finalReply || accumulated, isIdentity);
+
+      if (formattedFinal) {
+        setMessages((prev) =>
+          prev.map((msg) => (msg.id === replyMsgId ? { ...msg, text: formattedFinal } : msg))
+        );
+      }
+
+      console.log(`[RAG] Retrieval: ${retrievalTime.toFixed(2)} ms`);
+      console.log(`[RAG] Context formatting: ${formattingTime.toFixed(2)} ms`);
+      console.log(`[QWEN] Time to first token: ${qwenTTFT.toFixed(2)} ms`);
+      console.log(`[QWEN] Generation: ${qwenGenTime.toFixed(2)} ms`);
+      console.log(`[TOTAL] End-to-end: ${totalEndToEnd.toFixed(2)} ms`);
+    } catch (err) {
+      console.error('Chatbot generation error:', err);
+      const cap = getCachedCapability();
+      const reasonMsg = err.message || statusMessage || 'Model inference error';
+      const errorMsg = !cap?.supported
+        ? `Local WebGPU inference is not available on this device: ${reasonMsg}. Please use a desktop browser or supported device.`
+        : `I encountered an issue generating a response: ${reasonMsg}. Please try asking again.`;
+
+      setMessages((prev) =>
+        prev.map((msg) => (msg.id === replyMsgId ? { ...msg, text: errorMsg } : msg))
+      );
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleClearChat = () => {
@@ -139,9 +379,9 @@ const SpacePage = () => {
           <div className="text-[10px] uppercase tracking-wider text-white/30 px-3 py-1 font-bold">
             Recent Chats
           </div>
-          <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-left text-xs font-medium text-purple-300 animate-pulse">
+          <button className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-left text-xs font-medium text-purple-300">
             <MessageSquare className="w-3.5 h-3.5" />
-            <span className="truncate">Dummy Model Test</span>
+            <span className="truncate">Active Chat</span>
           </button>
         </div>
 
@@ -152,8 +392,24 @@ const SpacePage = () => {
               <Sparkles className="w-4 h-4 text-purple-400" />
             </div>
             <div>
-              <div className="text-xs font-bold text-white/90">Dev Mode</div>
-              <div className="text-[10px] text-white/40">Dummy Endpoint Active</div>
+              <div className="text-xs font-bold text-white/90">LUCA Engine</div>
+              <div className="text-[10px] text-white/40">
+                {modelStatus === 'ready'
+                  ? 'Qwen3-0.6B ONNX / WebGPU'
+                  : modelStatus === 'loading'
+                  ? statusMessage || `Loading model${modelProgress ? ` ${modelProgress}` : '...'}`
+                  : modelStatus === 'UNSUPPORTED_SHADER_F16'
+                  ? 'Shader-f16 unsupported'
+                  : modelStatus === 'UNSUPPORTED_LOCAL_WEBGPU'
+                  ? 'WebGPU unavailable'
+                  : modelStatus === 'INSUFFICIENT_DEVICE_RESOURCES'
+                  ? 'Limited device memory'
+                  : modelStatus === 'INITIALIZATION_FAILED'
+                  ? 'Initialization failed'
+                  : modelStatus === 'error'
+                  ? 'WebGPU offline'
+                  : 'Checking hardware...'}
+              </div>
             </div>
           </div>
         </div>
@@ -173,8 +429,36 @@ const SpacePage = () => {
             </button>
             <div className="w-px h-4 bg-white/10 shrink-0" />
             <div className="flex items-center gap-2.5 min-w-0">
-              <span className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)] animate-pulse shrink-0" />
-              <span className="text-white/80 text-[13px] font-medium truncate">LUCA AI (Dummy Model)</span>
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  modelStatus === 'ready'
+                    ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)] animate-pulse'
+                    : modelStatus === 'loading'
+                    ? 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)] animate-pulse'
+                    : modelStatus === 'error' || modelStatus === 'INITIALIZATION_FAILED'
+                    ? 'bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]'
+                    : ['UNSUPPORTED_SHADER_F16', 'UNSUPPORTED_LOCAL_WEBGPU', 'INSUFFICIENT_DEVICE_RESOURCES'].includes(modelStatus)
+                    ? 'bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]'
+                    : 'bg-purple-400 animate-pulse'
+                }`}
+              />
+              <span className="text-white/80 text-[13px] font-medium truncate">
+                {modelStatus === 'ready'
+                  ? 'LUCA AI (Qwen WebGPU)'
+                  : modelStatus === 'loading'
+                  ? `LUCA AI (${statusMessage || `Loading model${modelProgress ? ` ${modelProgress}` : '...'}`})`
+                  : modelStatus === 'UNSUPPORTED_SHADER_F16'
+                  ? 'LUCA AI (GPU Incompatible)'
+                  : modelStatus === 'UNSUPPORTED_LOCAL_WEBGPU'
+                  ? 'LUCA AI (WebGPU Unavailable)'
+                  : modelStatus === 'INSUFFICIENT_DEVICE_RESOURCES'
+                  ? 'LUCA AI (Limited Memory)'
+                  : modelStatus === 'INITIALIZATION_FAILED'
+                  ? 'LUCA AI (Startup Failed)'
+                  : modelStatus === 'error'
+                  ? 'LUCA AI (WebGPU Offline)'
+                  : 'LUCA AI'}
+              </span>
             </div>
           </div>
           <button
@@ -184,6 +468,20 @@ const SpacePage = () => {
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Hardware Status / Capability Notice Bar */}
+        {['UNSUPPORTED_SHADER_F16', 'UNSUPPORTED_LOCAL_WEBGPU', 'INSUFFICIENT_DEVICE_RESOURCES', 'INITIALIZATION_FAILED'].includes(modelStatus) && (
+          <div className="px-5 py-2.5 bg-amber-500/10 border-b border-amber-500/20 text-amber-200 text-xs flex items-center gap-2 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+            <span>{statusMessage || 'Local WebGPU inference is unavailable on this device.'}</span>
+          </div>
+        )}
+        {hasLowMemory && modelStatus === 'loading' && (
+          <div className="px-5 py-2 bg-purple-500/10 border-b border-purple-500/20 text-purple-200 text-xs flex items-center gap-2 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse shrink-0" />
+            <span>Your device has limited available memory, so startup may take a little longer.</span>
+          </div>
+        )}
 
         {/* Message Feed */}
         <div className="flex-1 overflow-y-auto p-5 space-y-6">
@@ -208,7 +506,15 @@ const SpacePage = () => {
                       : 'bg-[#1e1f20]/95 border border-white/[0.08] text-white rounded-tl-sm max-w-[85%]'
                   }`}
                 >
-                  {msg.text}
+                  {msg.text ? (
+                    msg.text
+                  ) : msg.sender === 'assistant' ? (
+                    <div className="flex items-center gap-1.5 py-0.5">
+                      <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* User Avatar */}
@@ -219,20 +525,6 @@ const SpacePage = () => {
                 )}
               </div>
             ))}
-
-            {/* Typing Indicator */}
-            {isTyping && (
-              <div className="flex gap-3.5 justify-start">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#512da8] to-purple-600 flex items-center justify-center shadow-lg shrink-0">
-                  <Bot className="w-4.5 h-4.5 text-white" />
-                </div>
-                <div className="bg-[#1e1f20]/95 border border-white/[0.08] text-white py-4 px-5 rounded-2xl rounded-tl-sm flex items-center gap-1.5 shadow-lg">
-                  <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <span className="w-2 h-2 rounded-full bg-white/40 animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
-            )}
 
             <div ref={messagesEndRef} />
           </div>
