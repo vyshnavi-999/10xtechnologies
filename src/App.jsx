@@ -9,6 +9,7 @@ import ModelsPage from './pages/ModelsPage';
 import BlogPage from './pages/BlogPage';
 import BlogDetails from './pages/BlogDetails';
 import ScrollToTopButton from './components/ScrollToTopButton';
+import DataRatingPage from './pages/DataRatingPage';
 
 import TokenizerPrototype from './pages/TokenizerPrototype';
 import QwenWebGPUTest from './components/QwenWebGPUTest';
@@ -28,6 +29,7 @@ const App = () => {
         <Route path="/tokenizer-prototype" element={<TokenizerPrototype />} />
         <Route path="/qwen-webgpu-test" element={<QwenWebGPUTest />} />
         <Route path="/qwen-test" element={<QwenWebGPUTest />} />
+        <Route path="/data" element={<DataRatingPage />} />
       </Routes>
       <ScrollToTopButton />
     </>
