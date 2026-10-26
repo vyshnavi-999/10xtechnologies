@@ -3517,7 +3517,7 @@ async function flush(){
     var j=await r.json();
     if(j && j.ok){ drop(batch.length); }
   }catch(err){
-    try{ await fetch(CONFIG.ENDPOINT_URL,{method:"POST",mode:"no-cors",body:body}); drop(batch.length); }catch(e2){}
+    /* not confirmed by the sheet: keep the records queued and retry (duplicates are removed by record_id) */
   }
   flushing=false; save();
   if(S.outbox.length) setTimeout(flush,4000);
