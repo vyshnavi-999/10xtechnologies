@@ -25,6 +25,7 @@
     back: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>',
     next: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>',
     play: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 2.2v11.6c0 .7.8 1.1 1.4.7l9-5.8c.5-.3.5-1.1 0-1.4l-9-5.8C4.8 1.1 4 1.5 4 2.2z"/></svg>',
+    download: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>',
     pause: '<svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="3.6" height="12" rx="1"/><rect x="9.4" y="2" width="3.6" height="12" rx="1"/></svg>',
   };
   const fmt = (t) => { t = Math.max(0, t || 0); return Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0"); };
@@ -148,7 +149,7 @@
           <div class="clips">${cs.map((c, i) => `<article class="clip${heard.has(c.id) ? " heard" : ""}" data-src="${c.file}" data-dur="${c.sec}" data-id="${c.id}" data-lang="${L.code}" data-len="${c.len}" data-label="${L.name} ${n.toLowerCase()} clip ${i + 1}">
             <button class="play" aria-label="Play ${L.name} ${n.toLowerCase()} clip ${i + 1}">${ICON.play}</button>
             <div class="wave" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" tabindex="-1"><div class="bars">${bars(c.peaks)}</div><div class="bars top">${bars(c.peaks)}</div></div>
-            <span class="time">0:00 / ${fmt(c.sec)}</span>
+            <div class="meta"><span class="time">0:00 / ${fmt(c.sec)}</span><a class="dl" href="${c.file}" download="lyric-lite-${L.code}-${c.id}.mp3" title="Download this clip (MP3)" aria-label="Download ${L.name} ${n.toLowerCase()} clip ${i + 1}">${ICON.download}</a></div>
             <div class="num">${n} · ${String(i + 1).padStart(2, "0")}</div>
             <p class="txt" lang="${L.code}">${esc(c.text)}</p></article>`).join("")}</div></section>`;
       }).join("")}</section>`;
