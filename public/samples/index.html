@@ -112,7 +112,7 @@
   .play { border-color: transparent; }
   .clip.on .play { background: #fff; color: #0d0a1a; box-shadow: 0 0 0 4px color-mix(in srgb, var(--violet) 35%, transparent); }
   .play svg { width: 17px; height: 17px; }
-  .wave { position: relative; height: 46px; cursor: pointer; min-width: 0; touch-action: none; }
+  .wave { position: relative; height: 46px; min-width: 0; pointer-events: none; }
   .bars { position: absolute; inset: 0; display: flex; align-items: center; gap: 2px; }
   .bars i { flex: 1 1 0; min-width: 1px; border-radius: 2px; background: var(--wave); }
   .bars.top { clip-path: inset(0 calc(100% - var(--p, 0%)) 0 0); }

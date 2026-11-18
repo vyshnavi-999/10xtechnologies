@@ -137,7 +137,7 @@
       ${backBtn("Back to languages", "languages")}
       <div class="eyebrow">${L.name} · ${L.clips.length} clips</div>
       <h1><span lang="${L.code}" style="font-family:inherit">${L.native}</span> <em>${L.name}</em></h1>
-      <p class="lede">Press play, or tap anywhere on a waveform to jump. Clips are grouped from short lines to long passages.</p>
+      <p class="lede">Press play to listen. Clips are grouped from short lines to long passages.</p>
       <nav class="bar" aria-label="Filters">
         <div class="chips" role="group" aria-label="Length">${[["all", "All"], ...BUCKETS].map(([k, n]) => `<button class="chip" data-f="${k}" aria-pressed="${filter === k}">${n}</button>`).join("")}</div>
         <div class="chips" role="group" aria-label="Language">${LANGS.map((l) => `<button class="chip lng" data-l="${l.code}" aria-pressed="${l.code === code}" title="${l.name}">${l.native}</button>`).join("")}</div>
@@ -148,7 +148,7 @@
         return `<section class="group"><div class="group-h"><h2>${n.split(" ").length > 1 ? n.replace("long", "<em>long</em>") : `<em>${n}</em>`}</h2><span>${cs.length} clips · ${fmt(cs.reduce((s, c) => s + c.sec, 0))}</span></div>
           <div class="clips">${cs.map((c, i) => `<article class="clip${heard.has(c.id) ? " heard" : ""}" data-src="${c.file}" data-dur="${c.sec}" data-id="${c.id}" data-lang="${L.code}" data-len="${c.len}" data-label="${L.name} ${n.toLowerCase()} clip ${i + 1}">
             <button class="play" aria-label="Play ${L.name} ${n.toLowerCase()} clip ${i + 1}">${ICON.play}</button>
-            <div class="wave" role="slider" aria-label="Seek" aria-valuemin="0" aria-valuemax="100" tabindex="-1"><div class="bars">${bars(c.peaks)}</div><div class="bars top">${bars(c.peaks)}</div></div>
+            <div class="wave" aria-hidden="true"><div class="bars">${bars(c.peaks)}</div><div class="bars top">${bars(c.peaks)}</div></div>
             <div class="meta"><span class="time">0:00 / ${fmt(c.sec)}</span><a class="dl" href="${c.file}" download="lyric-lite-${L.code}-${c.id}.mp3" title="Download this clip (MP3)" aria-label="Download ${L.name} ${n.toLowerCase()} clip ${i + 1}">${ICON.download}</a></div>
             <div class="num">${n} · ${String(i + 1).padStart(2, "0")}</div>
             <p class="txt" lang="${L.code}">${esc(c.text)}</p></article>`).join("")}</div></section>`;
@@ -157,10 +157,6 @@
     view.querySelectorAll(".chip[data-l]").forEach((b) => (b.onclick = () => { if (b.dataset.l !== code) { track("language", { lang: b.dataset.l }); go("listen-" + b.dataset.l); } }));
     view.querySelectorAll(".clip").forEach((el) => {
       el.querySelector(".play").onclick = () => (active === el && !audio.paused ? audio.pause() : start(el));
-      el.querySelector(".wave").addEventListener("pointerdown", (e) => {
-        const r = e.currentTarget.getBoundingClientRect();
-        start(el, Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)));
-      });
     });
     wireBack();
   }
